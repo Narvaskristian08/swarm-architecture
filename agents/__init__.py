@@ -8,6 +8,7 @@ from .research import ResearchAgent
 from .tester import TesterAgent
 from .memory_agent import MemoryAgentClass
 from .reflection import ReflectionAgent
+from .installer import InstallerAgent
 
 __all__ = [
     "PlannerAgent",
@@ -17,4 +18,5 @@ __all__ = [
     "TesterAgent",
     "MemoryAgentClass",
     "ReflectionAgent",
+    "InstallerAgent",
 ]

@@ -82,6 +82,10 @@ class ProjectAnalyzerTool(BaseTool):
             "go.mod": self._parse_go_mod,
             "Cargo.toml": self._parse_cargo_toml,
             "pom.xml": self._parse_pom_xml,
+            "pubspec.yaml": self._parse_pubspec,  # Flutter/Dart
+            "build.gradle": self._parse_gradle,   # Android
+            "Podfile": self._parse_podfile,       # iOS
+            "Package.swift": self._parse_swift_package,  # Swift
         }
         
         for filename, parser in package_files.items():
@@ -130,6 +134,16 @@ class ProjectAnalyzerTool(BaseTool):
             libraries = set()
             frameworks = set()
             
+            # Known framework patterns
+            known_frameworks = {
+                'django', 'flask', 'fastapi', 'pyramid', 'tornado',
+                'bottle', 'cherrypy', 'web2py', 'turbogears', 'falcon',
+                'sanic', 'starlette', 'aiohttp', 'quart', 'responder'
+            }
+            
+            # Framework indicators in names
+            framework_indicators = ['framework', 'web', 'api', 'server', 'app']
+            
             for line in content.split('\n'):
                 line = line.strip()
                 if not line or line.startswith('#'):
@@ -142,10 +156,11 @@ class ProjectAnalyzerTool(BaseTool):
                     libraries.add(package)
                     
                     # Identify frameworks
-                    if package in ['django', 'flask', 'fastapi', 'pyramid', 'tornado']:
+                    if package in known_frameworks:
                         frameworks.add(package)
-                    elif package == 'requests':
-                        libraries.add('requests')
+                    # Check for framework-like names
+                    elif any(indicator in package for indicator in framework_indicators):
+                        frameworks.add(package)
             
             return {
                 "language": "Python",
@@ -215,17 +230,29 @@ class ProjectAnalyzerTool(BaseTool):
             libraries = set()
             frameworks = set()
             
+            # Known frameworks
+            known_frameworks = {
+                'react', 'vue', 'angular', 'svelte', 'next', 'nuxt', 'gatsby',
+                'express', 'koa', 'fastify', 'nestjs', 'hapi', 'restify',
+                'meteor', 'sails', 'adonis', 'loopback', 'feathers'
+            }
+            
+            # Framework indicators
+            framework_indicators = ['framework', 'web', 'api', 'server', 'app']
+            
             # Get dependencies
             for dep_type in ['dependencies', 'devDependencies']:
                 if dep_type in data:
                     for package in data[dep_type].keys():
-                        libraries.add(package.lower())
+                        package_lower = package.lower()
+                        libraries.add(package_lower)
                         
                         # Identify frameworks
-                        if package in ['react', 'vue', 'angular', 'svelte', 'next', 'nuxt']:
-                            frameworks.add(package)
-                        elif package in ['express', 'koa', 'fastify', 'nestjs']:
-                            frameworks.add(package)
+                        if package_lower in known_frameworks:
+                            frameworks.add(package_lower)
+                        # Check package name
+                        elif any(indicator in package_lower for indicator in framework_indicators):
+                            frameworks.add(package_lower)
             
             return {
                 "language": "JavaScript/TypeScript",
@@ -360,6 +387,122 @@ class ProjectAnalyzerTool(BaseTool):
             logger.error(f"Error parsing pom.xml: {e}")
             return {}
     
+    def _parse_pubspec(self, file_path: Path) -> Dict[str, Any]:
+        """Parse Flutter/Dart pubspec.yaml"""
+        try:
+            content = file_path.read_text()
+            libraries = set()
+            frameworks = set()
+            
+            # Detect Flutter
+            if 'flutter:' in content or 'sdk: flutter' in content:
+                frameworks.add('flutter')
+            
+            # Parse dependencies (simple parsing, not full YAML)
+            in_deps = False
+            for line in content.split('\n'):
+                if line.strip().startswith('dependencies:'):
+                    in_deps = True
+                    continue
+                if in_deps:
+                    if line.strip().startswith('dev_dependencies:') or (line and not line.startswith(' ')):
+                        in_deps = False
+                        continue
+                    if ':' in line:
+                        package = line.strip().split(':')[0].strip()
+                        if package and package != 'sdk':
+                            libraries.add(package)
+            
+            return {
+                "language": "Dart/Flutter",
+                "package_manager": "pub",
+                "libraries": libraries,
+                "frameworks": frameworks,
+                "file": "pubspec.yaml"
+            }
+        except Exception as e:
+            logger.error(f"Error parsing pubspec.yaml: {e}")
+            return {}
+    
+    def _parse_gradle(self, file_path: Path) -> Dict[str, Any]:
+        """Parse Android build.gradle"""
+        try:
+            content = file_path.read_text()
+            libraries = set()
+            frameworks = set()
+            
+            # Detect Android
+            if 'com.android.application' in content or 'com.android.library' in content:
+                frameworks.add('android')
+            
+            # Parse dependencies
+            dependencies = re.findall(r'implementation\s+["\']([^"\']+)["\']', content)
+            for dep in dependencies:
+                # Extract library name (e.g., "androidx.core:core-ktx:1.9.0" -> "androidx.core")
+                if ':' in dep:
+                    lib_name = dep.split(':')[0]
+                    libraries.add(lib_name)
+            
+            return {
+                "language": "Kotlin/Java",
+                "package_manager": "gradle",
+                "libraries": libraries,
+                "frameworks": frameworks,
+                "file": "build.gradle"
+            }
+        except Exception as e:
+            logger.error(f"Error parsing build.gradle: {e}")
+            return {}
+    
+    def _parse_podfile(self, file_path: Path) -> Dict[str, Any]:
+        """Parse iOS Podfile"""
+        try:
+            content = file_path.read_text()
+            libraries = set()
+            frameworks = set()
+            
+            # This is an iOS project
+            frameworks.add('ios')
+            
+            # Parse pods
+            pods = re.findall(r"pod\s+['\"]([^'\"]+)['\"]", content)
+            libraries.update(pods)
+            
+            return {
+                "language": "Swift/Objective-C",
+                "package_manager": "cocoapods",
+                "libraries": libraries,
+                "frameworks": frameworks,
+                "file": "Podfile"
+            }
+        except Exception as e:
+            logger.error(f"Error parsing Podfile: {e}")
+            return {}
+    
+    def _parse_swift_package(self, file_path: Path) -> Dict[str, Any]:
+        """Parse Swift Package.swift"""
+        try:
+            content = file_path.read_text()
+            libraries = set()
+            
+            # Parse package dependencies
+            packages = re.findall(r'\.package\([^)]*url:\s*"([^"]+)"', content)
+            for url in packages:
+                # Extract package name from URL
+                if '/' in url:
+                    lib_name = url.split('/')[-1].replace('.git', '')
+                    libraries.add(lib_name)
+            
+            return {
+                "language": "Swift",
+                "package_manager": "swift-pm",
+                "libraries": libraries,
+                "file": "Package.swift"
+            }
+        except Exception as e:
+            logger.error(f"Error parsing Package.swift: {e}")
+            return {}
+    
     def _scan_all_imports(self, project_path: Path) -> Dict[str, Any]:
         """Scan source files for import statements"""
         libraries = set()
@@ -443,6 +586,31 @@ class ProjectAnalyzerTool(BaseTool):
         """Detect the type of project"""
         frameworks = set(analysis.get("frameworks", []))
         libraries = set(analysis.get("libraries", []))
+        languages = set(analysis.get("languages", []))
+        
+        # Use LLM to intelligently classify if we have many libraries
+        # For now, use heuristics
+        
+        # Mobile/Cross-platform
+        if 'flutter' in frameworks:
+            return "Flutter Mobile App"
+        if 'android' in frameworks:
+            return "Android App"
+        if 'ios' in frameworks:
+            return "iOS App"
+        if 'react-native' in libraries or 'react-native' in frameworks:
+            return "React Native Mobile App"
+        
+        # AI/ML frameworks
+        ai_ml_libs = ['yolo', 'ultralytics', 'tensorflow', 'pytorch', 'keras', 
+                      'scikit-learn', 'sklearn', 'opencv', 'transformers']
+        if any(lib in libraries for lib in ai_ml_libs):
+            return "AI/ML Application"
+        
+        # Computer Vision
+        cv_libs = ['opencv', 'cv2', 'pillow', 'imageio', 'yolo']
+        if any(lib in libraries for lib in cv_libs):
+            return "Computer Vision Application"
         
         # Web frameworks
         if any(f in frameworks for f in ['django', 'flask', 'fastapi']):
@@ -453,15 +621,23 @@ class ProjectAnalyzerTool(BaseTool):
             return "Node.js Backend"
         if 'rails' in frameworks:
             return "Ruby on Rails Web App"
+        if 'nextjs' in libraries or 'next' in frameworks:
+            return "Next.js Web App"
         
         # Data science
-        if any(lib in libraries for lib in ['pandas', 'numpy', 'sklearn', 'tensorflow', 'pytorch']):
-            return "Data Science / ML"
+        if any(lib in libraries for lib in ['pandas', 'numpy']):
+            return "Data Science Application"
         
-        # General
-        if 'Python' in analysis.get("languages", []):
+        # General by language
+        if "Dart/Flutter" in languages:
+            return "Flutter Application"
+        if "Swift" in languages or "Swift/Objective-C" in languages:
+            return "iOS Application"
+        if "Kotlin/Java" in languages and 'android' in frameworks:
+            return "Android Application"
+        if 'Python' in languages:
             return "Python Application"
-        if 'JavaScript/TypeScript' in analysis.get("languages", []):
+        if 'JavaScript/TypeScript' in languages:
             return "JavaScript Application"
         
         return "Unknown"
@@ -490,3 +666,181 @@ class ProjectAnalyzerTool(BaseTool):
             lines.append(f"Package Managers: {', '.join(analysis['package_managers'])}")
         
         return "\n".join(lines)
+    
+    def _check_versions(self, package_file: Optional[str] = None) -> Dict[str, Any]:
+        """Check installed versions of packages"""
+        import subprocess
+        
+        result = {
+            "status": "success",
+            "versions": {},
+            "language": None
+        }
+        
+        try:
+            # Python packages
+            if package_file and "requirements" in package_file:
+                result["language"] = "Python"
+                
+                # Use pip list to get installed versions
+                proc = subprocess.run(
+                    ["pip", "list", "--format=json"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                
+                if proc.returncode == 0:
+                    import json
+                    packages = json.loads(proc.stdout)
+                    for pkg in packages:
+                        result["versions"][pkg["name"].lower()] = pkg["version"]
+            
+            # Node.js packages
+            elif package_file and "package.json" in package_file:
+                result["language"] = "JavaScript"
+                
+                # Read package-lock.json if available
+                lock_file = self.project_root / "package-lock.json"
+                if lock_file.exists():
+                    data = json.loads(lock_file.read_text())
+                    if "packages" in data:
+                        for pkg_name, pkg_info in data["packages"].items():
+                            if pkg_name:  # Skip root package
+                                clean_name = pkg_name.split("/")[-1]
+                                result["versions"][clean_name] = pkg_info.get("version", "unknown")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error checking versions: {e}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
+    
+    def _check_outdated(self, language: Optional[str] = None) -> Dict[str, Any]:
+        """Check for outdated packages"""
+        import subprocess
+        
+        result = {
+            "status": "success",
+            "outdated": [],
+            "command_used": None,
+            "language": language
+        }
+        
+        try:
+            # Auto-detect language if not provided
+            if not language:
+                if (self.project_root / "requirements.txt").exists():
+                    language = "python"
+                elif (self.project_root / "package.json").exists():
+                    language = "javascript"
+            
+            # Python
+            if language and language.lower() == "python":
+                result["command_used"] = "pip list --outdated"
+                
+                proc = subprocess.run(
+                    ["pip", "list", "--outdated", "--format=json"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    cwd=str(self.project_root)
+                )
+                
+                if proc.returncode == 0:
+                    import json
+                    outdated = json.loads(proc.stdout)
+                    
+                    for pkg in outdated:
+                        result["outdated"].append({
+                            "name": pkg["name"],
+                            "current": pkg["version"],
+                            "latest": pkg["latest_version"],
+                            "type": pkg.get("latest_filetype", "wheel")
+                        })
+            
+            # Node.js
+            elif language and language.lower() in ["javascript", "nodejs", "node"]:
+                result["command_used"] = "npm outdated"
+                
+                proc = subprocess.run(
+                    ["npm", "outdated", "--json"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    cwd=str(self.project_root)
+                )
+                
+                # npm outdated returns exit code 1 if there are outdated packages
+                if proc.stdout:
+                    import json
+                    try:
+                        outdated_data = json.loads(proc.stdout)
+                        
+                        for pkg_name, pkg_info in outdated_data.items():
+                            result["outdated"].append({
+                                "name": pkg_name,
+                                "current": pkg_info.get("current", "unknown"),
+                                "latest": pkg_info.get("latest", "unknown"),
+                                "wanted": pkg_info.get("wanted", "unknown")
+                            })
+                    except json.JSONDecodeError:
+                        pass
+            
+            else:
+                result["status"] = "error"
+                result["error"] = "Could not determine language or unsupported language"
+            
+            result["total_outdated"] = len(result["outdated"])
+            return result
+            
+        except subprocess.TimeoutExpired:
+            return {
+                "status": "error",
+                "error": "Command timed out"
+            }
+        except FileNotFoundError as e:
+            return {
+                "status": "error",
+                "error": f"Package manager not found: {e}"
+            }
+        except Exception as e:
+            logger.error(f"Error checking outdated packages: {e}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
+
+    
+    def research_unknown_libraries(self, libraries: List[str], limit: int = 5) -> Dict[str, Any]:
+        """
+        Automatically research unknown/unfamiliar libraries.
+        This can be used by the Research Agent to learn about new frameworks.
+        
+        Args:
+            libraries: List of library names to research
+            limit: Max number of libraries to research
+            
+        Returns:
+            Dictionary with research results for each library
+        """
+        results = {
+            "status": "success",
+            "researched": {},
+            "total": len(libraries[:limit])
+        }
+        
+        for lib in libraries[:limit]:
+            results["researched"][lib] = {
+                "name": lib,
+                "needs_research": True,
+                "search_query": f"{lib} framework documentation",
+                "pypi_url": f"https://pypi.org/project/{lib}/",
+                "npm_url": f"https://www.npmjs.com/package/{lib}",
+                "github_search": f"https://github.com/search?q={lib}",
+            }
+        
+        return results

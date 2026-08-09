@@ -34,7 +34,7 @@ def test_imports():
         ToolManager, get_tool_manager
     )
     
-    print("✓ All imports successful")
+    print(" All imports successful")
 
 
 def test_agent_creation():
@@ -61,7 +61,7 @@ def test_agent_creation():
         assert agent.name is not None
         assert len(agent.capabilities) > 0
     
-    print(f"✓ Created {len(agents)} agents successfully")
+    print(f" Created {len(agents)} agents successfully")
 
 
 def test_orchestrator():
@@ -90,7 +90,7 @@ def test_orchestrator():
     assert "orchestrator_status" in status
     assert len(status["registered_agents"]) == 2
     
-    print("✓ Orchestrator working correctly")
+    print(" Orchestrator working correctly")
 
 
 def test_memory_system():
@@ -115,7 +115,7 @@ def test_memory_system():
     assert "long_term" in stats
     assert "vector" in stats
     
-    print("✓ Memory system initialized")
+    print(" Memory system initialized")
 
 
 def test_tool_system():
@@ -138,7 +138,7 @@ def test_tool_system():
     terminal_tool = tm.get_tool("terminal")
     assert terminal_tool is not None
     
-    print(f"✓ Tool system has {len(tools)} tools")
+    print(f" Tool system has {len(tools)} tools")
 
 
 def test_response_parser():
@@ -163,7 +163,7 @@ def test_response_parser():
     items = ResponseParser.extract_list(text_with_list)
     assert len(items) == 3
     
-    print("✓ Response parser working correctly")
+    print("Response parser working correctly")
 
 
 def test_prompt_templates():
@@ -187,7 +187,7 @@ def test_prompt_templates():
     assert "Test task" in prompt
     assert "Must work" in prompt
     
-    print("✓ Prompt templates working correctly")
+    print("Prompt templates working correctly")
 
 
 def test_file_tool_validation():
@@ -211,7 +211,7 @@ def test_file_tool_validation():
     valid, error = tool.validate_params(operation="read")
     assert not valid
     
-    print("✓ File tool validation working")
+    print(" File tool validation working")
 
 
 def test_agent_capabilities():
@@ -230,7 +230,7 @@ def test_agent_capabilities():
     reviewer = ReviewerAgent()
     assert reviewer.can_handle("code_review")
     
-    print("✓ Agent capabilities working correctly")
+    print("Agent capabilities working correctly")
 
 
 def run_all_tests():

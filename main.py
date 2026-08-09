@@ -14,7 +14,7 @@ sys.path.insert(0, str(project_root))
 from core import Orchestrator, get_llm_client
 from agents import (
     PlannerAgent, CoderAgent, ReviewerAgent,
-    ResearchAgent, TesterAgent, MemoryAgentClass, ReflectionAgent
+    ResearchAgent, TesterAgent, MemoryAgentClass, ReflectionAgent, InstallerAgent
 )
 from memory import get_memory_manager
 from tools import get_tool_manager
@@ -41,8 +41,9 @@ def setup_environment():
 
 
 def initialize_swarm() -> Orchestrator:
-    """Initialize the swarm system"""
-    console.print("[bold green]Initializing AI Swarm...[/bold green]")
+    """Initialize the NORA system"""
+    console.print("[bold green]Initializing NORA...[/bold green]")
+    console.print("[dim]Neural Orchestration & Research Assistant[/dim]\n")
     
     # Initialize LLM client
     console.print("[dim]Connecting to Ollama...[/dim]")
@@ -89,9 +90,10 @@ def initialize_swarm() -> Orchestrator:
     tester = TesterAgent()
     memory_agent = MemoryAgentClass()
     reflection = ReflectionAgent()
+    installer = InstallerAgent()
     
     # Configure LLM for all agents
-    agents = [planner, coder, reviewer, research, tester, memory_agent, reflection]
+    agents = [planner, coder, reviewer, research, tester, memory_agent, reflection, installer]
     if llm_client:
         for agent in agents:
             agent.set_llm_client(llm_client)
@@ -99,6 +101,8 @@ def initialize_swarm() -> Orchestrator:
     # Configure agent-specific tools
     research.set_web_tool(tool_manager.get_tool("web"))
     tester.set_terminal_tool(tool_manager.get_tool("terminal"))
+    installer.set_terminal_tool(tool_manager.get_tool("terminal"))
+    installer.set_web_tool(tool_manager.get_tool("web"))
     memory_agent.set_memory_manager(memory_manager)
     
     # Register all agents with orchestrator
@@ -107,10 +111,10 @@ def initialize_swarm() -> Orchestrator:
     
     console.print(f"[green]✓[/green] Registered {len(agents)} agents:")
     console.print("[dim]  - Planner, Coder, Reviewer")
-    console.print("[dim]  - Research, Tester, Memory, Reflection[/dim]")
+    console.print("[dim]  - Research, Tester, Memory, Reflection, Installer[/dim]")
     
-    console.print("[green]✓[/green] AI Swarm initialized successfully!")
-    console.print("[dim]All systems ready. Type 'help' for commands.[/dim]\n")
+    console.print("[green]✓[/green] NORA initialized successfully!")
+    console.print("[dim]Ready to build applications. Type 'goal <description>' to start.[/dim]\n")
     
     return orchestrator
 
@@ -123,6 +127,9 @@ def main():
         
         # Initialize system
         orchestrator = initialize_swarm()
+        
+        # Get tool manager
+        tool_manager = get_tool_manager()
         
         # Start CLI
         cli = SwarmCLI(orchestrator, tool_manager=tool_manager)
