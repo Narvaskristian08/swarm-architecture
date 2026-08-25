@@ -73,7 +73,7 @@ def initialize_swarm() -> Orchestrator:
     console.print(f"[green]✓[/green] Initialized {len(tools_list)} tools")
     
     # Create orchestrator
-    orchestrator = Orchestrator()
+    orchestrator = Orchestrator(workspace_root=project_root)
     if llm_client:
         orchestrator.set_llm_client(llm_client)
     
