@@ -296,6 +296,15 @@ Implementation Guidelines:
 6. Consider edge cases
 7. Use type hints/annotations where applicable
 
+Return every generated file using this exact format:
+
+FILE: relative/path/to/file.ext
+```{language}
+complete file contents
+```
+
+Use a separate FILE marker and fenced block for every file. Paths must be
+relative, must not contain ``..``, and should include the project directory.
 Provide complete, production-ready code with proper structure.""")
         
         return "\n".join(prompt_parts)

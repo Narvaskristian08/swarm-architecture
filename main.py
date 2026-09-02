@@ -4,7 +4,6 @@ AI Swarm - Main Entry Point
 Phase 1: Basic structure with orchestrator
 """
 import sys
-import os
 from pathlib import Path
 
 # Add project root to path
@@ -20,6 +19,7 @@ from memory import get_memory_manager
 from tools import get_tool_manager
 from cli import SwarmCLI
 from rich.console import Console
+from config import LLM_PROVIDER, SWARM_WORKSPACE_PATH
 
 console = Console()
 
@@ -30,12 +30,10 @@ def setup_environment():
     data_dir = project_root / "data"
     data_dir.mkdir(exist_ok=True)
     
-    # Load environment variables
-    from dotenv import load_dotenv
+    # Configuration is loaded by config/__init__.py before other project
+    # modules evaluate their constants. This check is only user guidance.
     env_file = project_root / ".env"
-    if env_file.exists():
-        load_dotenv(env_file)
-    else:
+    if not env_file.exists():
         console.print("[yellow]Warning: .env file not found. Using defaults.[/yellow]")
         console.print("[dim]Copy .env.example to .env to customize configuration[/dim]\n")
 
@@ -46,19 +44,17 @@ def initialize_swarm() -> Orchestrator:
     console.print("[dim]Neural Orchestration & Research Assistant[/dim]\n")
     
     # Initialize LLM client
-    console.print("[dim]Connecting to Ollama...[/dim]")
-    try:
-        llm_client = get_llm_client()
-        models = llm_client.list_models()
-        if models:
-            console.print(f"[green]✓[/green] Connected to Ollama (available models: {len(models)})")
-        else:
-            console.print("[yellow]⚠[/yellow] Ollama connected but no models found")
-            console.print("[dim]  Run: ollama pull qwen2.5:7b[/dim]")
-    except Exception as e:
-        console.print(f"[yellow]⚠[/yellow] Could not connect to Ollama: {e}")
-        console.print("[dim]  Make sure Ollama is running: https://ollama.ai[/dim]")
-        llm_client = None
+    console.print(f"[dim]Checking local LLM provider: {LLM_PROVIDER}...[/dim]")
+    llm_client = get_llm_client()
+    llm_health = llm_client.health()
+    if llm_health.get("ready"):
+        console.print(
+            f"[green]✓[/green] LLM ready ({llm_health['provider']}: "
+            f"{llm_health.get('model')})"
+        )
+    else:
+        console.print(f"[yellow]⚠[/yellow] {llm_health.get('message')}")
+        console.print("[dim]  NORA diagnostics remain available; goals wait for a model.[/dim]")
     
     # Initialize memory system
     console.print("[dim]Initializing memory system...[/dim]")
@@ -68,14 +64,17 @@ def initialize_swarm() -> Orchestrator:
     
     # Initialize tools
     console.print("[dim]Initializing tools...[/dim]")
-    tool_manager = get_tool_manager()
+    tool_manager = get_tool_manager(SWARM_WORKSPACE_PATH)
     tools_list = tool_manager.list_tools()
     console.print(f"[green]✓[/green] Initialized {len(tools_list)} tools")
     
     # Create orchestrator
-    orchestrator = Orchestrator(workspace_root=project_root)
-    if llm_client:
-        orchestrator.set_llm_client(llm_client)
+    orchestrator = Orchestrator(
+        workspace_root=SWARM_WORKSPACE_PATH,
+        tool_manager=tool_manager,
+        memory_manager=memory_manager,
+    )
+    orchestrator.set_llm_client(llm_client)
     
     # Register all agents
     console.print("[dim]Registering agents...[/dim]")
@@ -94,9 +93,8 @@ def initialize_swarm() -> Orchestrator:
     
     # Configure LLM for all agents
     agents = [planner, coder, reviewer, research, tester, memory_agent, reflection, installer]
-    if llm_client:
-        for agent in agents:
-            agent.set_llm_client(llm_client)
+    for agent in agents:
+        agent.set_llm_client(llm_client)
     
     # Configure agent-specific tools
     research.set_web_tool(tool_manager.get_tool("web"))
@@ -113,8 +111,11 @@ def initialize_swarm() -> Orchestrator:
     console.print("[dim]  - Planner, Coder, Reviewer")
     console.print("[dim]  - Research, Tester, Memory, Reflection, Installer[/dim]")
     
-    console.print("[green]✓[/green] NORA initialized successfully!")
-    console.print("[dim]Ready to build applications. Type 'goal <description>' to start.[/dim]\n")
+    console.print("[green]✓[/green] NORA services initialized successfully!")
+    if llm_health.get("ready"):
+        console.print("[dim]Ready to build applications. Type 'goal <description>' to start.[/dim]\n")
+    else:
+        console.print("[dim]Type 'doctor' for model setup details.[/dim]\n")
     
     return orchestrator
 
@@ -129,7 +130,7 @@ def main():
         orchestrator = initialize_swarm()
         
         # Get tool manager
-        tool_manager = get_tool_manager()
+        tool_manager = orchestrator.tool_manager
         
         # Start CLI
         cli = SwarmCLI(orchestrator, tool_manager=tool_manager)

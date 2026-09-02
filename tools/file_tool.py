@@ -25,7 +25,7 @@ class FileTool(BaseTool):
             name="File Tool",
             description="Read, write, and search files"
         )
-        self.workspace_root = workspace_root or Path.cwd()
+        self.workspace_root = (workspace_root or Path.cwd()).resolve()
         self.max_file_size = MAX_FILE_SIZE_MB * 1024 * 1024  # Convert to bytes
     
     def execute(self, operation: str, **kwargs) -> Dict[str, Any]:
@@ -62,18 +62,31 @@ class FileTool(BaseTool):
             
             # Check if path is within workspace (security)
             try:
-                full_path = (self.workspace_root / file_path).resolve()
-                if not str(full_path).startswith(str(self.workspace_root.resolve())):
+                full_path = self._resolve_path(file_path)
+                if not full_path.is_relative_to(self.workspace_root):
                     return False, "Path must be within workspace root"
             except Exception as e:
                 return False, f"Invalid path: {e}"
         
+        if operation in ["list", "search"]:
+            directory = kwargs.get("directory", ".")
+            try:
+                if not self._resolve_path(directory).is_relative_to(self.workspace_root):
+                    return False, "Directory must be within workspace root"
+            except Exception as e:
+                return False, f"Invalid directory: {e}"
+
         return True, None
+
+    def _resolve_path(self, path: str) -> Path:
+        """Resolve a user path without permitting workspace escapes."""
+        candidate = Path(path).expanduser()
+        return candidate.resolve() if candidate.is_absolute() else (self.workspace_root / candidate).resolve()
     
     def _read_file(self, file_path: str, encoding: str = "utf-8") -> Dict[str, Any]:
         """Read file contents"""
         try:
-            full_path = self.workspace_root / file_path
+            full_path = self._resolve_path(file_path)
             
             # Check size
             if full_path.stat().st_size > self.max_file_size:
@@ -113,7 +126,7 @@ class FileTool(BaseTool):
     ) -> Dict[str, Any]:
         """Write content to file"""
         try:
-            full_path = self.workspace_root / file_path
+            full_path = self._resolve_path(file_path)
             
             # Create directories if needed
             if create_dirs:
@@ -144,7 +157,7 @@ class FileTool(BaseTool):
     ) -> Dict[str, Any]:
         """Append content to file"""
         try:
-            full_path = self.workspace_root / file_path
+            full_path = self._resolve_path(file_path)
             
             # Append to file
             with open(full_path, 'a', encoding=encoding) as f:
@@ -172,7 +185,7 @@ class FileTool(BaseTool):
             }
         
         try:
-            full_path = self.workspace_root / file_path
+            full_path = self._resolve_path(file_path)
             
             if not full_path.exists():
                 return {
@@ -201,7 +214,7 @@ class FileTool(BaseTool):
     ) -> Dict[str, Any]:
         """List files in directory"""
         try:
-            dir_path = self.workspace_root / directory
+            dir_path = self._resolve_path(directory)
             
             if not dir_path.is_dir():
                 return {
@@ -233,7 +246,7 @@ class FileTool(BaseTool):
     def _check_exists(self, file_path: str) -> Dict[str, Any]:
         """Check if file exists"""
         try:
-            full_path = self.workspace_root / file_path
+            full_path = self._resolve_path(file_path)
             exists = full_path.exists()
             
             result = {
@@ -265,7 +278,7 @@ class FileTool(BaseTool):
     ) -> Dict[str, Any]:
         """Search for text in files"""
         try:
-            dir_path = self.workspace_root / directory
+            dir_path = self._resolve_path(directory)
             matches = []
             
             # Search files
@@ -314,7 +327,7 @@ class FileTool(BaseTool):
     def _get_file_info(self, file_path: str) -> Dict[str, Any]:
         """Get file information"""
         try:
-            full_path = self.workspace_root / file_path
+            full_path = self._resolve_path(file_path)
             
             if not full_path.exists():
                 return {

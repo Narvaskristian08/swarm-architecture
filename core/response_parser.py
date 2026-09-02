@@ -63,14 +63,25 @@ class ResponseParser:
             List of dicts with 'language' and 'code' keys
         """
         pattern = r'```(\w+)?\s*\n(.*?)```'
-        matches = re.findall(pattern, text, re.DOTALL)
-        
         code_blocks = []
-        for language, code in matches:
-            code_blocks.append({
+        for match in re.finditer(pattern, text, re.DOTALL):
+            language, code = match.groups()
+            block = {
                 "language": language or "unknown",
                 "code": code.strip()
-            })
+            }
+
+            # Agents are instructed to put ``FILE: relative/path`` immediately
+            # before a fenced block. Preserve it as structured artifact data.
+            prefix = text[max(0, match.start() - 500):match.start()]
+            path_matches = re.findall(
+                r"(?:^|\n)\s*(?:={1,3}\s*)?FILE:\s*([^\n]+?)\s*(?:={1,3})?\s*$",
+                prefix,
+                re.IGNORECASE | re.MULTILINE,
+            )
+            if path_matches:
+                block["path"] = path_matches[-1].strip().strip("`= ")
+            code_blocks.append(block)
         
         return code_blocks
     

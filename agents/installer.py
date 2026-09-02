@@ -4,7 +4,10 @@ Researches, suggests, and helps install new frameworks/libraries.
 """
 from typing import Dict, Any, List, Optional
 import logging
+import re
+import shlex
 import subprocess
+import sys
 
 from core import BaseAgent, PromptTemplate, ResponseParser
 
@@ -138,6 +141,8 @@ Consider:
         
         if not framework:
             return {"status": "error", "message": "Framework name required"}
+        if not self._is_valid_package_name(framework, language):
+            return {"status": "error", "message": "Invalid framework/package name"}
         
         workflow_result = {
             "status": "success",
@@ -225,6 +230,8 @@ Be concise but complete."""
         
         if not framework:
             return {"status": "error", "message": "Framework name required"}
+        if not self._is_valid_package_name(framework, language):
+            return {"status": "error", "message": "Invalid framework/package name"}
         
         self.state.update("working", f"Checking {framework}")
         
@@ -247,6 +254,8 @@ Be concise but complete."""
         
         if not framework:
             return {"status": "error", "message": "Framework name required"}
+        if not self._is_valid_package_name(framework, language):
+            return {"status": "error", "message": "Invalid framework/package name"}
         
         if not confirm:
             return {
@@ -279,7 +288,7 @@ Be concise but complete."""
         try:
             if language.lower() == "python":
                 result = subprocess.run(
-                    ["pip", "show", framework],
+                    [sys.executable, "-m", "pip", "show", framework],
                     capture_output=True,
                     timeout=10
                 )
@@ -304,7 +313,7 @@ Be concise but complete."""
         try:
             if language.lower() == "python":
                 result = subprocess.run(
-                    ["pip", "show", framework],
+                    [sys.executable, "-m", "pip", "show", framework],
                     capture_output=True,
                     text=True,
                     timeout=10
@@ -322,10 +331,11 @@ Be concise but complete."""
     def _get_install_command(self, framework: str, language: str, version: Optional[str] = None) -> str:
         """Get installation command for framework"""
         if language.lower() == "python":
+            python = shlex.quote(sys.executable)
             if version:
-                return f"pip install {framework}=={version}"
+                return f"{python} -m pip install {framework}=={version}"
             else:
-                return f"pip install {framework}"
+                return f"{python} -m pip install {framework}"
         
         elif language.lower() in ["javascript", "nodejs", "node"]:
             if version:
@@ -344,6 +354,22 @@ Be concise but complete."""
         
         else:
             return f"# Manual installation required for {framework}"
+
+    def _is_valid_package_name(self, framework: str, language: str) -> bool:
+        """Reject options and shell syntax before constructing install commands."""
+        if not isinstance(framework, str) or len(framework) > 200:
+            return False
+        if language.lower() == "python":
+            return bool(re.fullmatch(
+                r"[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[A-Za-z0-9_,.-]+\])?",
+                framework,
+            ))
+        if language.lower() in {"javascript", "nodejs", "node"}:
+            return bool(re.fullmatch(
+                r"(?:@[A-Za-z0-9._-]+/)?[A-Za-z0-9._-]+",
+                framework,
+            ))
+        return bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/@+-]*", framework))
     
     def _execute_install(self, framework: str, language: str, command: str) -> bool:
         """Execute installation command"""

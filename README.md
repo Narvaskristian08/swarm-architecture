@@ -8,7 +8,7 @@ A local, privacy-focused AI assistant featuring 8 specialized agents, 3-layer me
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Ollama](https://img.shields.io/badge/Ollama-Required-green.svg)](https://ollama.ai)
+[![LLM: llama.cpp or Ollama](https://img.shields.io/badge/LLM-llama.cpp%20%7C%20Ollama-blue.svg)](https://github.com/ggerganov/llama.cpp)
 
 ---
 
@@ -54,7 +54,9 @@ A local, privacy-focused AI assistant featuring 8 specialized agents, 3-layer me
 
 ### Prerequisites
 - Python 3.9+
-- [Ollama](https://ollama.ai) installed and running
+- **Choose ONE LLM provider:**
+  - **llama.cpp** (default) - Direct GGUF model inference, no server needed
+  - **Ollama** - Pre-configured model server (easier setup)
 - 8GB+ RAM recommended
 
 ### Installation
@@ -67,10 +69,14 @@ cd swarm-architecture
 # Run automated setup
 ./setup.sh
 
-# Pull Ollama model
-ollama pull qwen2.5:7b
+# Configure your LLM provider - edit .env:
+# Option 1 (llama.cpp): Set LLAMA_MODEL_PATH=/path/to/your/model.gguf
+# Option 2 (Ollama): Set LLM_PROVIDER=ollama, then run: ollama pull qwen2.5:7b
 
-# Run the swarm
+# Install llama.cpp if using GGUF (skip if using Ollama):
+pip install -r requirements-llama.txt
+
+# Run NORA
 ./run.sh
 ```
 

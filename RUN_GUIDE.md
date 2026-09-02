@@ -1,461 +1,567 @@
-# 🚀 AI Swarm - Complete Setup & Run Guide
+# NORA Run Guide
 
-## 📋 Prerequisites
+Complete guide to running and using NORA (Neural Orchestration & Research Assistant).
 
-Before you start, make sure you have:
-- **Python 3.9+** installed
-- **Ollama** installed and running
-- **Git** (you already have this)
+## Prerequisites
 
----
+Before running NORA, ensure you have completed the setup:
 
-## ⚡ Quick Start (5 Minutes)
+1. ✅ Python 3.9+ installed
+2. ✅ Virtual environment created and activated
+3. ✅ Dependencies installed (`pip install -r requirements.txt`)
+4. ✅ LLM provider configured (llama.cpp or Ollama)
+5. ✅ `.env` file configured
 
-### Step 1: Create Virtual Environment
-```bash
-cd /Users/deb/ai-swarm
-
-# Create virtual environment
-python3 -m venv venv
-
-# Activate it (macOS/Linux)
-source venv/bin/activate
-
-# You should see (venv) in your terminal prompt now
-```
-
-### Step 2: Install Dependencies
-```bash
-# Upgrade pip first
-pip install --upgrade pip
-
-# Install all requirements
-pip install -r requirements.txt
-```
-
-This installs:
-- `requests` - Web requests
-- `python-dotenv` - Environment variables
-- `chromadb` - Vector database
-- `rich` - Beautiful terminal output
-- `beautifulsoup4` - Web scraping
-
-### Step 3: Set Up Ollama
-
-```bash
-# Install Ollama (if not already installed)
-# Visit: https://ollama.ai or use:
-brew install ollama  # macOS
-
-# Start Ollama
-ollama serve
-
-# In another terminal, pull the Qwen model
-ollama pull qwen2.5:7b
-```
-
-### Step 4: Configure Environment
-```bash
-# Copy the example config
-cp .env.example .env
-
-# Edit .env if needed (optional - defaults work fine)
-nano .env  # or use any editor
-```
-
-### Step 5: Run the Swarm!
-```bash
-# Make sure virtual environment is activated
-source venv/bin/activate
-
-# Run the swarm
-python main.py
-```
+If you haven't completed setup, see [SETUP.md](SETUP.md) first.
 
 ---
 
-## 🎮 Using the Swarm
+## Starting NORA
 
-### Basic Commands
-
-Once running, you'll see:
-```
-╔══════════════════════════════════════════╗
-║         AI Swarm System v1.0             ║
-╚══════════════════════════════════════════╝
-
-✓ Connected to Ollama (available models: 3)
-✓ Memory system ready
-✓ Initialized 6 tools
-✓ Registered 8 agents
-
-swarm> _
-```
-
-### Available Commands
-
-| Command | Description | Example |
-|---------|-------------|---------|
-| `help` | Show all commands | `help` |
-| `goal <description>` | Give the swarm a task | `goal Create a REST API` |
-| `status` | System status | `status` |
-| `agents` | List all agents | `agents` |
-| `check-project` | Analyze current project | `check-project` |
-| `research-frameworks` | Auto-research frameworks | `research-frameworks` |
-| `suggest <purpose>` | AI suggests framework | `suggest object detection` |
-| `install <framework>` | Install a framework | `install ultralytics` |
-| `clear` | Clear screen | `clear` |
-| `exit` or `quit` | Exit swarm | `exit` |
-
----
-
-## 💡 Example Usage Scenarios
-
-### Scenario 1: Build a License Plate Detector
+### Quick Start
 
 ```bash
-swarm> goal Build a system that detects license plates and cars
-
-# The swarm will:
-# 1. Create a plan (Planner Agent)
-# 2. Research YOLO and OCR (Research Agent)
-# 3. Suggest frameworks (Installer Agent)
-# 4. Write the code (Coder Agent)
-# 5. Create tests (Tester Agent)
-# 6. Review everything (Reviewer Agent)
+./run.sh
 ```
 
-### Scenario 2: Need Help Choosing a Framework
+This script will:
+- Activate the virtual environment
+- Check LLM provider status
+- Start NORA CLI
+
+### Manual Start
 
 ```bash
-swarm> suggest web framework for Python REST API
-
-# AI Response:
-Recommended: fastapi
-Why: Modern, fast, automatic docs, type hints, async support
-Alternatives: flask, django
-Install: pip install fastapi
-
-swarm> install fastapi
-
-# System will:
-# 1. Research FastAPI
-# 2. Check if installed
-# 3. Ask confirmation
-# 4. Install it
-# 5. Verify success
-```
-
-### Scenario 3: Analyze Your Project
-
-```bash
-swarm> check-project
-
-# Output:
-Project Type: Python Application
-Languages: Python
-Libraries: 10 detected
-  • requests
-  • chromadb
-  • rich
-  ...
-
-Recommendations:
-  • Found 2 outdated packages
-  • Run 'pip install --upgrade <package>'
-```
-
-### Scenario 4: Research Unknown Frameworks
-
-```bash
-swarm> research-frameworks
-
-# System will:
-# 1. Scan project files
-# 2. Detect all frameworks
-# 3. Research important ones
-# 4. Store findings in memory
-# 5. Provide recommendations
-```
-
----
-
-## 🔧 Troubleshooting
-
-### Problem: "Cannot connect to Ollama"
-
-**Solution:**
-```bash
-# Start Ollama in another terminal
-ollama serve
-
-# Pull a model if you haven't
-ollama pull qwen2.5:7b
-```
-
-### Problem: "ChromaDB error"
-
-**Solution:**
-```bash
-# Install/reinstall ChromaDB
-pip install --upgrade chromadb
-
-# If still failing, remove data directory
-rm -rf data/
-# Then restart
-```
-
-### Problem: "Module not found"
-
-**Solution:**
-```bash
-# Make sure virtual environment is activated
-source venv/bin/activate
-
-# Reinstall requirements
-pip install -r requirements.txt
-```
-
-### Problem: Virtual environment not working
-
-**Solution:**
-```bash
-# Delete and recreate
-rm -rf venv
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
----
-
-## 📂 Project Structure
-
-```
-ai-swarm/
-├── venv/                      # Virtual environment (created)
-├── data/                      # Runtime data (auto-created)
-│   ├── swarm.db              # SQLite long-term memory
-│   └── chroma_db/            # Vector memory
-├── agents/                    # 8 Specialized agents
-│   ├── planner.py            # Task planning
-│   ├── coder.py              # Code generation
-│   ├── reviewer.py           # Code review
-│   ├── research.py           # Web research
-│   ├── tester.py             # Test creation
-│   ├── memory_agent.py       # Knowledge management
-│   ├── reflection.py         # Learning & improvement
-│   └── installer.py          # Framework installation
-├── core/                      # Core system
-│   ├── orchestrator.py       # Agent coordination
-│   ├── base_agent.py         # Agent base class
-│   ├── llm_client.py         # Ollama integration
-│   └── response_parser.py    # LLM response parsing
-├── memory/                    # 3-layer memory system
-│   ├── short_term.py         # Runtime memory
-│   ├── long_term.py          # SQLite persistence
-│   ├── vector_memory.py      # ChromaDB semantic search
-│   └── memory_manager.py     # Unified interface
-├── tools/                     # Tool system
-│   ├── file_tool.py          # File operations
-│   ├── terminal_tool.py      # Command execution
-│   ├── git_tool.py           # Version control
-│   ├── web_tool.py           # Web scraping
-│   └── project_analyzer.py   # Framework detection
-├── examples/                  # Demo scripts
-│   ├── auto_research_frameworks.py
-│   └── demo_complete_workflow.py
-├── main.py                    # Entry point
-├── cli.py                     # Command-line interface
-├── requirements.txt           # Dependencies
-├── .env                       # Your config (don't commit)
-└── .env.example              # Config template
-```
-
----
-
-## 🎯 Step-by-Step First Run
-
-### Complete Walkthrough
-
-```bash
-# 1. Navigate to project
-cd /Users/deb/ai-swarm
-
-# 2. Create virtual environment (one-time)
-python3 -m venv venv
-
-# 3. Activate it (every time you start)
-source venv/bin/activate
-
-# 4. Install dependencies (one-time)
-pip install -r requirements.txt
-
-# 5. Make sure Ollama is running (in another terminal)
-ollama serve
-
-# 6. Make sure model is downloaded (one-time)
-ollama pull qwen2.5:7b
-
-# 7. Run the swarm
-python main.py
-
-# 8. Try a command
-swarm> help
-swarm> agents
-swarm> suggest object detection
-swarm> goal Create a hello world Flask app
-
-# 9. Exit when done
-swarm> exit
-```
-
----
-
-## 🔄 Daily Usage
-
-Every time you want to use the swarm:
-
-```bash
-# Terminal 1: Start Ollama (if not running)
-ollama serve
-
-# Terminal 2: Run the swarm
-cd /Users/deb/ai-swarm
 source venv/bin/activate
 python main.py
 ```
 
+### Troubleshooting Startup
+
+If you see warnings:
+- **"Cannot connect to Ollama"** - Start Ollama: `ollama serve`
+- **"Model file not found"** - Check `LLAMA_MODEL_PATH` in `.env`
+- **"llama-cpp-python not installed"** - Run: `pip install -r requirements-llama.txt`
+
+NORA will still start but won't be able to generate code without an LLM.
+
 ---
 
-## 🎨 Demo Scripts
+## CLI Commands Reference
 
-Try the example scripts:
+### Core Commands
+
+#### `goal <description>`
+
+Build anything by describing what you want.
+
+**Examples:**
+```
+goal Create a Python calculator with add, subtract, multiply, divide
+goal Build a REST API with Flask and SQLite database
+goal Make a command-line todo app with persistent storage
+```
+
+**What happens:**
+1. Planner agent creates a structured plan
+2. Agents execute tasks in order
+3. Code is generated and saved to `./projects/`
+4. Results show files created and status
+
+---
+
+#### `status`
+
+Display comprehensive system status.
+
+**Shows:**
+- Orchestrator status
+- LLM provider and model
+- Model readiness
+- Active workflows
+- Workspace location
+
+**Example output:**
+```
+System Status
+
+Orchestrator: ready
+Active Workflows: 0
+Queued Messages: 0
+Workspace: /path/to/ai-swarm/projects
+
+LLM Provider: llama_cpp
+Model Status: Ready
+Model: /path/to/model.gguf
+```
+
+---
+
+#### `doctor`
+
+Run comprehensive system diagnostics.
+
+**Checks:**
+- Python version
+- Orchestrator status
+- Workspace configuration
+- LLM provider status
+- Registered agents count
+- Available tools
+- Memory system
+
+**When to use:**
+- First time setup verification
+- Troubleshooting issues
+- After configuration changes
+
+---
+
+#### `agents`
+
+List all registered agents and their capabilities.
+
+**Shows:**
+- Agent ID
+- Name
+- Status
+- Capabilities
+
+**Example:**
+```
+Registered Agents
+
+planner    Planner      ready    planning, task_breakdown
+coder      Coder        ready    code_generation, implementation
+reviewer   Reviewer     ready    code_review, quality_assurance
+tester     Tester       ready    test_design, test_execution
+research   Research     ready    web_research, documentation
+...
+```
+
+---
+
+#### `workflows`
+
+Show active and recent workflows.
+
+**Displays:**
+- Workflow ID
+- Goal
+- Status
+- Creation time
+
+---
+
+### Framework & Package Commands
+
+#### `suggest <purpose>`
+
+Get AI-powered framework recommendations.
+
+**Examples:**
+```
+suggest web framework for Python REST API
+suggest object detection library for Python
+suggest GUI framework for desktop app
+```
+
+**Returns:**
+- Recommended framework
+- Why it's recommended
+- Alternatives
+- Installation command
+- Difficulty level
+- Documentation link
+
+---
+
+#### `install <framework>`
+
+Research and install a framework with confirmation.
+
+**Examples:**
+```
+install flask
+install ultralytics
+install tensorflow
+```
+
+**Process:**
+1. Researches the framework
+2. Checks if already installed
+3. Shows findings
+4. Asks for confirmation
+5. Installs if approved
+
+**Safety:** Always asks before installing.
+
+---
+
+#### `check-project`
+
+Analyze current project and detect frameworks.
+
+**Detects:**
+- Project type
+- Languages used
+- Frameworks
+- Libraries
+- Package managers
+- Config files
+
+**Use when:**
+- Starting work on existing project
+- Understanding project structure
+- Identifying dependencies
+
+---
+
+#### `research-frameworks`
+
+Automatically research all detected frameworks in your project.
+
+**Process:**
+1. Scans project for frameworks
+2. Identifies AI/ML frameworks
+3. Provides research summary
+4. Suggests next steps
+
+---
+
+### Utility Commands
+
+#### `help`
+
+Display all available commands with descriptions.
+
+#### `clear`
+
+Clear the screen and show banner.
+
+#### `exit` or `quit`
+
+Exit NORA (asks for confirmation).
+
+---
+
+## Understanding Workflows
+
+### Workflow Lifecycle
+
+1. **Created** - Goal submitted
+2. **Planning** - Planner creates task breakdown
+3. **Executing** - Agents execute tasks
+4. **Completed/Failed** - Final status
+
+### Workflow Statuses
+
+- **completed** - All tasks succeeded
+- **completed_with_errors** - Some tasks failed
+- **blocked** - Cannot proceed (e.g., no LLM)
+- **failed** - Critical error occurred
+
+### Checking Results
+
+After a workflow completes:
 
 ```bash
-# Activate environment first
+# Check generated files
+ls -R projects/
+
+# View specific file
+cat projects/calculator/main.py
+
+# Run generated code
+python projects/calculator/main.py
+```
+
+---
+
+## LLM Provider Management
+
+### Switching Providers
+
+Edit `.env` and change:
+
+```bash
+# Switch to llama.cpp
+LLM_PROVIDER=llama_cpp
+
+# Or switch to Ollama
+LLM_PROVIDER=ollama
+```
+
+Then restart NORA. No code changes needed!
+
+### Provider-Specific Issues
+
+#### llama.cpp
+
+**"Model file not found"**
+- Verify path is absolute
+- Check file exists: `ls -lh /path/to/model.gguf`
+- Ensure `.gguf` extension
+
+**"llama-cpp-python not installed"**
+```bash
+pip install -r requirements-llama.txt
+```
+
+**Slow generation**
+- Enable GPU: Set `LLAMA_GPU_LAYERS=-1` in `.env`
+- Or use smaller model
+
+#### Ollama
+
+**"Cannot connect to Ollama"**
+```bash
+ollama serve  # In another terminal
+```
+
+**"Model not available"**
+```bash
+ollama pull qwen2.5:7b
+```
+
+**Timeout errors**
+- Increase timeout in `.env`: `OLLAMA_TIMEOUT=300`
+
+---
+
+## Best Practices
+
+### Writing Good Goals
+
+✅ **Specific and Clear:**
+```
+goal Create a Python REST API with Flask, SQLite database, and CRUD operations
+```
+
+❌ **Too Vague:**
+```
+goal Make an API
+```
+
+### Iterative Development
+
+1. Start with basic version:
+   ```
+   goal Create a basic calculator
+   ```
+
+2. Add features incrementally:
+   ```
+   goal Add scientific functions to the calculator (sin, cos, tan)
+   ```
+
+3. Include tests:
+   ```
+   goal Add unit tests for the calculator
+   ```
+
+### Project Organization
+
+NORA organizes generated projects:
+
+```
+projects/
+├── calculator/
+│   ├── main.py
+│   └── tests/
+│       └── test_calculator.py
+├── todo_app/
+│   ├── main.py
+│   ├── todo.db
+│   └── tests/
+└── api/
+    ├── app.py
+    ├── requirements.txt
+    └── tests/
+```
+
+---
+
+## Advanced Usage
+
+### Multiple Goals
+
+Run multiple workflows in sequence:
+
+```
+nora> goal Create a utility functions library
+nora> goal Create a command-line interface for the library
+nora> goal Add comprehensive tests for the library
+```
+
+### Analyzing Existing Projects
+
+```bash
+cd /path/to/your/project
+nora  # Start NORA in project directory
+
+nora> check-project
+nora> research-frameworks
+```
+
+### Package Management
+
+```
+nora> suggest web scraping library
+# Returns: beautifulsoup4, scrapy, etc.
+
+nora> install beautifulsoup4
+# Researches and installs with confirmation
+```
+
+---
+
+## Common Workflows
+
+### Web Application
+```
+goal Create a Flask web app with user authentication, SQLite database, and REST API endpoints
+```
+
+### Data Processing
+```
+goal Create a Python script to process CSV files, generate statistics, and create visualizations
+```
+
+### Automation
+```
+goal Create a backup script that compresses directories and uploads to cloud storage
+```
+
+### CLI Tool
+```
+goal Create a command-line tool for managing environment variables with add, list, export commands
+```
+
+### Machine Learning
+```
+goal Create an image classifier using PyTorch with data loading, training, and prediction
+```
+
+---
+
+## Troubleshooting Guide
+
+### No Files Created
+
+**Check:**
+1. Workflow status: `workflows` command
+2. Workspace location: `status` command
+3. Directory permissions: `ls -la projects/`
+
+### Slow Performance
+
+**Solutions:**
+- Use smaller model (3B instead of 7B)
+- Enable GPU acceleration
+- Increase context size: `LLAMA_CONTEXT_SIZE=4096`
+
+### Import Errors
+
+```bash
 source venv/bin/activate
-
-# 1. Auto-research frameworks in your project
-python examples/auto_research_frameworks.py
-
-# 2. Complete workflow demo (suggestion → install)
-python examples/demo_complete_workflow.py
-
-# 3. YOLO research demo
-python examples/demo_yolo_research.py
+pip install -r requirements.txt --upgrade
 ```
 
----
+### Memory Issues
 
-## ⚙️ Configuration Options
-
-Edit `.env` to customize:
-
+For large projects:
 ```bash
-# Ollama settings
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen2.5:7b
+# Reduce context size
+LLAMA_CONTEXT_SIZE=4096
 
-# Memory settings
-ENABLE_VECTOR_MEMORY=true
-VECTOR_DB_PATH=./data/chroma_db
-
-# Tool settings
-ENABLE_WEB_RESEARCH=true
-MAX_FILE_SIZE_MB=10
-
-# Development
-DEBUG=false
-LOG_LEVEL=INFO
+# Reduce max tokens
+LLAMA_MAX_TOKENS=1024
 ```
 
 ---
 
-## 📊 System Requirements
+## Tips & Tricks
 
-### Minimum
-- **CPU**: 4 cores
-- **RAM**: 8GB
-- **Disk**: 10GB free
-- **OS**: macOS, Linux, Windows (WSL)
-
-### Recommended
-- **CPU**: 8+ cores (Apple Silicon preferred)
-- **RAM**: 16GB+
-- **Disk**: 20GB+ free
-- **GPU**: Optional (for faster LLM inference)
-
----
-
-## 🆘 Getting Help
-
-### Check System Status
-```bash
-swarm> status
-
-# Shows:
-# - Ollama connection
-# - Available agents
-# - Memory statistics
-# - Tool availability
+### 1. Use Framework Names
+```
+✓ goal Create a FastAPI REST endpoint
+✗ goal Create a REST endpoint (NORA will choose)
 ```
 
-### Test Individual Components
-```bash
-# Test Ollama connection
-ollama list
+### 2. Specify Language
+```
+✓ goal Create a Python web scraper
+✗ goal Create a web scraper (defaults to Python)
+```
 
-# Test Python environment
-python -c "import chromadb; print('OK')"
+### 3. Include Requirements
+```
+✓ goal Create a password generator with GUI using tkinter
+✗ goal Create a password generator
+```
 
-# Check installed packages
-pip list
+### 4. Request Tests
+```
+✓ goal Create a calculator with comprehensive unit tests
+```
+
+### 5. Specify Complexity
+```
+✓ goal Create a simple REST API
+✓ goal Create a production-ready REST API with error handling and logging
 ```
 
 ---
 
-## 🚀 Next Steps
+## Keyboard Shortcuts
 
-After setup, try:
-
-1. **Simple Task**: `swarm> goal Create a Python calculator`
-2. **Framework Suggestion**: `swarm> suggest machine learning framework`
-3. **Project Analysis**: `swarm> check-project`
-4. **Install Something**: `swarm> install requests`
-5. **Complex Task**: `swarm> goal Build a license plate detector`
+In the CLI:
+- **Ctrl+C** - Cancel current operation
+- **Ctrl+D** - Exit (same as `exit` command)
+- **↑/↓** - Command history
 
 ---
 
-## 📖 Additional Documentation
+## Getting Help
 
-- `README.md` - Project overview
-- `INTELLIGENT_RESEARCH.md` - Framework research system
-- `INSTALLER_GUIDE.md` - Installation system details
-- `SETUP.md` - Detailed setup instructions
-
----
-
-## ✅ Quick Checklist
-
-Before running, ensure:
-- [ ] Python 3.9+ installed
-- [ ] Virtual environment created (`python3 -m venv venv`)
-- [ ] Virtual environment activated (`source venv/bin/activate`)
-- [ ] Dependencies installed (`pip install -r requirements.txt`)
-- [ ] Ollama installed and running (`ollama serve`)
-- [ ] Model downloaded (`ollama pull qwen2.5:7b`)
-- [ ] `.env` file exists (copy from `.env.example`)
-
-Then:
-- [ ] Run `python main.py`
-- [ ] Type `help` to see commands
-- [ ] Try `goal Create a simple web scraper`
+1. Run `doctor` command for diagnostics
+2. Check `data/swarm.log` for errors
+3. See documentation:
+   - [SETUP.md](SETUP.md) - Installation details
+   - [QUICKSTART.md](QUICKSTART.md) - Getting started
+   - [EXAMPLES.md](EXAMPLES.md) - Sample projects
+   - [TESTING_GUIDE.md](TESTING_GUIDE.md) - Validation
 
 ---
 
-## 🎉 You're Ready!
+## Quick Reference
 
-The AI Swarm is now ready to help you build anything! Just describe what you want, and the agents will handle the rest.
+```
+Starting:
+  ./run.sh              Start NORA (recommended)
+  python main.py        Manual start
 
-**Happy coding!** 🤖✨
+Commands:
+  goal <desc>           Build anything
+  status                System status
+  doctor                Diagnostics
+  agents                List agents
+  workflows             Show workflows
+  suggest <purpose>     Get recommendations
+  install <pkg>         Install package
+  check-project         Analyze project
+  research-frameworks   Auto-research
+  help                  Show commands
+  exit                  Quit NORA
+
+Examples:
+  goal Create a Python calculator
+  goal Build a Flask REST API
+  suggest Python GUI framework
+  install requests
+```
+
+---
+
+**Ready to build? Run `./run.sh` and start creating!** 🚀

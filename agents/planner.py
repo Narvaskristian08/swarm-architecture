@@ -200,7 +200,8 @@ Please create a detailed execution plan with the following JSON structure:
       "id": "task_1",
       "description": "Clear, actionable task description",
       "dependencies": ["task_ids this depends on"],
-      "agent": "suggested agent type (planner/research/coder/tester/reviewer)",
+      "agent": "suggested agent type (research/coder/tester/reviewer)",
+      "language": "implementation language such as python or typescript",
       "estimated_complexity": "low/medium/high",
       "tools_needed": ["list of tools"],
       "deliverables": ["expected outputs"]

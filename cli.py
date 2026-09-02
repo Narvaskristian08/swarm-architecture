@@ -1,7 +1,9 @@
 """
 Command Line Interface for AI Swarm
 """
+import subprocess
 import sys
+from pathlib import Path
 from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
@@ -42,13 +44,14 @@ class SwarmCLI:
         
         commands = [
             ("goal <description>", "Build anything! Example: 'goal Create a budget tracker app'"),
-            ("status", "Show system status and active workflows"),
-            ("agents", "List all registered agents"),
-            ("workflows", "Show active workflows"),
+            ("status", "Show system status, LLM health, and workspace info"),
+            ("doctor", "Run diagnostics and check system readiness"),
+            ("agents", "List all registered agents and their capabilities"),
+            ("workflows", "Show active and recent workflows"),
             ("suggest <purpose>", "Ask AI for framework recommendations"),
-            ("install <framework>", "Install a specific framework"),
-            ("check-project", "Analyze existing project"),
-            ("research-frameworks", "Research frameworks in current project"),
+            ("install <framework>", "Research and install a specific framework"),
+            ("check-project", "Analyze existing project and detect frameworks"),
+            ("research-frameworks", "Automatically research detected frameworks"),
             ("clear", "Clear the screen"),
             ("help", "Show this help message"),
             ("quit / exit", "Exit NORA"),
@@ -60,13 +63,107 @@ class SwarmCLI:
         console.print(help_table)
     
     def show_status(self):
-        """Display system status"""
+        """Display comprehensive system status"""
         status = self.orchestrator.get_system_status()
         
-        console.print("\n[bold]System Status[/bold]")
-        console.print(f"Orchestrator: [green]{status['orchestrator_status']['status']}[/green]")
-        console.print(f"Active Workflows: {status['active_workflows']}")
-        console.print(f"Queued Messages: {status['queued_messages']}")
+        console.print("\n[bold]System Status[/bold]\n")
+        
+        # Orchestrator status
+        orch_status = status['orchestrator_status']
+        console.print(f"[bold]Orchestrator:[/bold] [green]{orch_status['status']}[/green]")
+        console.print(f"[bold]Active Workflows:[/bold] {status['active_workflows']}")
+        console.print(f"[bold]Queued Messages:[/bold] {status['queued_messages']}")
+        console.print(f"[bold]Workspace:[/bold] [dim]{status['workspace']}[/dim]")
+        
+        # LLM health
+        llm = status.get('llm', {})
+        console.print(f"\n[bold]LLM Provider:[/bold] {llm.get('provider', 'Not configured')}")
+        
+        if llm.get('ready'):
+            console.print(f"[bold]Model Status:[/bold] [green]Ready[/green]")
+            console.print(f"[bold]Model:[/bold] [dim]{llm.get('model', 'Unknown')}[/dim]")
+        else:
+            console.print(f"[bold]Model Status:[/bold] [yellow]Not Ready[/yellow]")
+            console.print(f"[dim]{llm.get('message', 'Model not configured')}[/dim]")
+        
+        # Registered agents
+        agent_count = len(status.get('registered_agents', {}))
+        console.print(f"\n[bold]Registered Agents:[/bold] {agent_count}")
+        
+        console.print()
+    
+    def run_doctor(self):
+        """Run system diagnostics"""
+        console.print("\n[bold cyan]NORA System Diagnostics[/bold cyan]\n")
+        
+        checks = []
+        
+        # Check 1: Python version
+        py_version = sys.version.split()[0]
+        checks.append(("Python Version", f"{py_version}", py_version >= "3.8", "3.8+ required"))
+        
+        # Check 2: Orchestrator
+        try:
+            orch_status = self.orchestrator.get_status()
+            checks.append(("Orchestrator", "Running", True, ""))
+        except Exception as e:
+            checks.append(("Orchestrator", str(e), False, "Core component failed"))
+        
+        # Check 3: Workspace
+        from config import SWARM_WORKSPACE_PATH
+        workspace_exists = SWARM_WORKSPACE_PATH.exists() and SWARM_WORKSPACE_PATH.is_dir()
+        checks.append(("Workspace", str(SWARM_WORKSPACE_PATH), workspace_exists, "Project output directory"))
+        
+        # Check 4: LLM Health
+        status = self.orchestrator.get_system_status()
+        llm = status.get('llm', {})
+        llm_ready = llm.get('ready', False)
+        llm_provider = llm.get('provider', 'None')
+        llm_status = f"{llm_provider}" + (f" ({llm.get('model', 'unknown')})" if llm_ready else "")
+        checks.append(("LLM Provider", llm_status, llm_ready, llm.get('message', '')))
+        
+        # Check 5: Agents
+        agent_count = len(self.orchestrator.registered_agents)
+        checks.append(("Agents", f"{agent_count} registered", agent_count >= 5, "Need core agents"))
+        
+        # Check 6: Tool Manager
+        has_tools = self.tool_manager is not None
+        tool_count = len(self.tool_manager.list_tools()) if has_tools else 0
+        checks.append(("Tools", f"{tool_count} available", has_tools, "File, terminal, git, etc."))
+        
+        # Check 7: Memory (optional)
+        has_memory = self.orchestrator.memory_manager is not None
+        checks.append(("Memory System", "Available" if has_memory else "Disabled", True, "Optional feature"))
+        
+        # Display results
+        table = Table(show_header=True, title="Diagnostic Results")
+        table.add_column("Component", style="cyan")
+        table.add_column("Status", style="white")
+        table.add_column("Result", style="white")
+        table.add_column("Notes", style="dim")
+        
+        all_passed = True
+        for component, status_text, passed, notes in checks:
+            result_icon = "[green]✓[/green]" if passed else "[red]✗[/red]"
+            table.add_row(component, status_text, result_icon, notes)
+            if not passed:
+                all_passed = False
+        
+        console.print(table)
+        
+        # Summary
+        if all_passed:
+            console.print("\n[bold green]✓ All checks passed! NORA is ready to build.[/bold green]")
+        else:
+            console.print("\n[bold yellow]⚠ Some checks failed. NORA can run with limited functionality.[/bold yellow]")
+            
+            if not llm_ready:
+                console.print("\n[bold]To enable LLM:[/bold]")
+                console.print("  1. For Ollama: Start Ollama and run 'ollama pull qwen2.5:7b'")
+                console.print("  2. For llama.cpp: Set LLAMA_MODEL_PATH in .env to your GGUF file")
+                console.print("     Then: pip install -r requirements-llama.txt")
+        
+        console.print()
     
     def show_agents(self):
         """Display registered agents"""
@@ -78,11 +175,16 @@ class SwarmCLI:
         
         for agent_id, agent in self.orchestrator.registered_agents.items():
             status = agent.get_status()
+            caps = status.get('capabilities', [])
+            cap_str = ", ".join(caps[:3])
+            if len(caps) > 3:
+                cap_str += f" (+{len(caps)-3} more)"
+            
             agents_table.add_row(
                 agent_id,
                 status['name'],
                 status['status'],
-                ", ".join(status['capabilities'][:3])  # Show first 3
+                cap_str
             )
         
         console.print(agents_table)
@@ -125,93 +227,66 @@ class SwarmCLI:
             result = self.orchestrator.execute_workflow(workflow_id)
         
         # Display result
-        if result.get("status") == "completed":
+        status = result.get("status")
+        message = result.get("message", "No message")
+        
+        if status == "completed":
             console.print(Panel(
-                result.get("message", "Goal processed successfully"),
-                title="[green]Success[/green]",
+                f"[green]{message}[/green]",
+                title="[green]✓ Success[/green]",
                 border_style="green"
             ))
+            
+            # Show files created
+            files = result.get("files_created", [])
+            if files:
+                console.print(f"\n[bold]Files created ({len(files)}):[/bold]")
+                for file in files[:10]:
+                    console.print(f"  [cyan]•[/cyan] {file}")
+                if len(files) > 10:
+                    console.print(f"  [dim]... and {len(files)-10} more[/dim]")
+            
+            # Show workspace
+            workspace = result.get("workspace")
+            if workspace:
+                console.print(f"\n[dim]Location: {workspace}[/dim]")
+        
+        elif status == "completed_with_errors":
+            console.print(Panel(
+                f"[yellow]{message}[/yellow]",
+                title="[yellow]⚠ Completed with Errors[/yellow]",
+                border_style="yellow"
+            ))
+            
+            # Show partial results
+            files = result.get("files_created", [])
+            if files:
+                console.print(f"\n[bold]Files created:[/bold] {len(files)}")
+            
+            failed = result.get("tasks_failed", 0)
+            if failed:
+                console.print(f"[bold]Tasks failed:[/bold] {failed}")
+        
+        elif status == "blocked":
+            console.print(Panel(
+                f"[yellow]{message}[/yellow]",
+                title="[yellow]⚠ Blocked[/yellow]",
+                border_style="yellow"
+            ))
+            
+            error_code = result.get("error_code")
+            if error_code == "model_not_ready":
+                console.print("\n[bold]To enable LLM:[/bold]")
+                console.print("  Run 'doctor' command for setup instructions")
+        
         else:
             console.print(Panel(
-                result.get("message", "An error occurred"),
-                title="[red]Error[/red]",
+                f"[red]{message}[/red]",
+                title="[red]✗ Error[/red]",
                 border_style="red"
             ))
-    
-    def run(self):
-        """Main CLI loop"""
-        self.running = True
-        self.show_banner()
         
-        try:
-            while self.running:
-                try:
-                    # Get user input
-                    user_input = Prompt.ask("\n[bold cyan]nora>[/bold cyan]")
-                    
-                    if not user_input.strip():
-                        continue
-                    
-                    # Parse command
-                    parts = user_input.strip().split(maxsplit=1)
-                    command = parts[0].lower()
-                    args = parts[1] if len(parts) > 1 else ""
-                    
-                    # Handle commands
-                    if command in ["quit", "exit"]:
-                        if Confirm.ask("Are you sure you want to exit?"):
-                            self.running = False
-                            console.print("[yellow]Shutting down swarm...[/yellow]")
-                            self.orchestrator.shutdown()
-                    
-                    elif command == "help":
-                        self.show_help()
-                    
-                    elif command == "status":
-                        self.show_status()
-                    
-                    elif command == "agents":
-                        self.show_agents()
-                    
-                    elif command == "workflows":
-                        self.show_workflows()
-                    
-                    elif command == "goal":
-                        self.handle_goal(args)
-                    
-                    elif command == "check-project":
-                        self.check_project()
-                    
-                    elif command == "research-frameworks":
-                        self.research_frameworks()
-                    
-                    elif command.startswith("suggest "):
-                        purpose = command[8:].strip()
-                        self.suggest_framework(purpose)
-                    
-                    elif command.startswith("install "):
-                        framework = command[8:].strip()
-                        self.install_framework(framework)
-                    
-                    elif command == "clear":
-                        console.clear()
-                        self.show_banner()
-                    
-                    else:
-                        console.print(f"[red]Unknown command: {command}[/red]")
-                        console.print("[dim]Type 'help' for available commands[/dim]")
-                
-                except KeyboardInterrupt:
-                    console.print("\n[yellow]Use 'quit' or 'exit' to leave[/yellow]")
-                    continue
-                except Exception as e:
-                    console.print(f"[red]Error: {str(e)}[/red]")
-        
-        except KeyboardInterrupt:
-            console.print("\n[yellow]Shutting down...[/yellow]")
-        finally:
-            if self.running:
-                console.print("[green]Goodbye![/green]")
+        console.print()
     
     def check_project(self):
         """Analyze current project and display frameworks/libraries"""
@@ -271,105 +346,8 @@ class SwarmCLI:
         # Suggest checking documentation
         if frameworks:
             console.print(f"\n[dim]Tip: Use 'goal Research <framework> documentation' to learn more[/dim]")
-
-    def check_project(self):
-        """Analyze and check current project"""
-        if not self.tool_manager:
-            console.print("[yellow]Tool manager not available[/yellow]")
-            return
-        
-        console.print("\n[bold cyan]Analyzing Project...[/bold cyan]\n")
-        
-        with console.status("[bold green]Scanning project...", spinner="dots"):
-            # Analyze project
-            analysis = self.tool_manager.analyze_project()
-        
-        if analysis.get("status") != "success":
-            console.print(f"[red]Analysis failed: {analysis.get('error')}[/red]")
-            return
-        
-        # Display basic info
-        console.print(f"[bold]Project Type:[/bold] {analysis.get('project_type', 'Unknown')}")
-        console.print(f"[bold]Languages:[/bold] {', '.join(analysis.get('languages', []))}")
-        
-        # Frameworks
-        if analysis.get("frameworks"):
-            console.print(f"[bold]Frameworks:[/bold] {', '.join(analysis['frameworks'])}")
-        
-        # Libraries
-        if analysis.get("libraries"):
-            lib_count = len(analysis["libraries"])
-            console.print(f"[bold]Libraries:[/bold] {lib_count} detected")
-            
-            # Show first 10
-            if lib_count > 0:
-                libs = sorted(analysis["libraries"])[:10]
-                for lib in libs:
-                    console.print(f"  • {lib}")
-                if lib_count > 10:
-                    console.print(f"  ... and {lib_count - 10} more")
-        
-        # Check for outdated packages
-        console.print("\n[bold cyan]Checking for Updates...[/bold cyan]\n")
-        
-        with console.status("[bold green]Checking versions...", spinner="dots"):
-            # Detect language
-            language = None
-            if "Python" in analysis.get("languages", []):
-                language = "python"
-            elif "JavaScript/TypeScript" in analysis.get("languages", []):
-                language = "javascript"
-            
-            if language:
-                outdated_result = self.tool_manager.execute_tool(
-                    "project",
-                    operation="check_outdated",
-                    language=language
-                )
-            else:
-                outdated_result = {"status": "error", "error": "Could not detect language"}
-        
-        if outdated_result.get("status") == "success":
-            outdated = outdated_result.get("outdated", [])
-            
-            if outdated:
-                console.print(f"[yellow]⚠ Found {len(outdated)} outdated packages:[/yellow]\n")
-                
-                # Create table
-                table = Table(show_header=True)
-                table.add_column("Package", style="cyan")
-                table.add_column("Current", style="yellow")
-                table.add_column("Latest", style="green")
-                
-                for pkg in outdated[:15]:  # Show first 15
-                    table.add_row(
-                        pkg["name"],
-                        pkg["current"],
-                        pkg["latest"]
-                    )
-                
-                console.print(table)
-                
-                if len(outdated) > 15:
-                    console.print(f"\n[dim]... and {len(outdated) - 15} more[/dim]")
-                
-                # Suggest update command
-                if language == "python":
-                    console.print("\n[bold]To update:[/bold]")
-                    console.print("  pip install --upgrade <package-name>")
-                    console.print("  or: pip install -r requirements.txt --upgrade")
-                elif language == "javascript":
-                    console.print("\n[bold]To update:[/bold]")
-                    console.print("  npm update")
-                    console.print("  or: npm install <package-name>@latest")
-            else:
-                console.print("[green]✓ All packages are up to date![/green]")
-        else:
-            console.print(f"[yellow]⚠ Could not check for updates: {outdated_result.get('error')}[/yellow]")
-            console.print("[dim]Make sure the package manager is installed[/dim]")
         
         console.print()
-
     
     def research_frameworks(self):
         """Intelligently research detected frameworks"""
@@ -381,9 +359,6 @@ class SwarmCLI:
         console.print("[dim]Detecting and researching all frameworks automatically...[/dim]\n")
         
         # Run the intelligent research script
-        import subprocess
-        import sys
-        
         script_path = Path(__file__).parent / "examples" / "auto_research_frameworks.py"
         
         if script_path.exists():
@@ -414,11 +389,12 @@ class SwarmCLI:
                         console.print(f"  • {lib}")
                     
                     console.print("\n[bold]To research these:[/bold]")
-                    console.print(f"  swarm> goal Research {important[0]} framework and its usage")
+                    console.print(f"  nora> goal Research {important[0]} framework and its usage")
                 else:
                     console.print("[green]No specialized AI/ML frameworks detected[/green]")
                     console.print(f"[dim]Detected {len(libraries)} general libraries[/dim]")
-
+        
+        console.print()
     
     def suggest_framework(self, purpose: str):
         """AI suggests best framework for a purpose"""
@@ -463,9 +439,11 @@ class SwarmCLI:
             # Offer to install
             framework = suggestion.get('framework')
             if framework:
-                console.print(f"\n[dim]To install: swarm> install {framework}[/dim]")
+                console.print(f"\n[dim]To install: nora> install {framework}[/dim]")
         else:
             console.print(f"[red]Failed to get suggestion: {result.get('message')}[/red]")
+        
+        console.print()
     
     def install_framework(self, framework: str):
         """Research and install a framework"""
@@ -545,3 +523,79 @@ class SwarmCLI:
         
         except (KeyboardInterrupt, EOFError):
             console.print("\n[yellow]Installation cancelled[/yellow]\n")
+    
+    def run(self):
+        """Main CLI loop"""
+        self.running = True
+        self.show_banner()
+        
+        try:
+            while self.running:
+                try:
+                    # Get user input
+                    user_input = Prompt.ask("\n[bold cyan]nora>[/bold cyan]")
+                    
+                    if not user_input.strip():
+                        continue
+                    
+                    # Parse command
+                    parts = user_input.strip().split(maxsplit=1)
+                    command = parts[0].lower()
+                    args = parts[1] if len(parts) > 1 else ""
+                    
+                    # Handle commands
+                    if command in ["quit", "exit"]:
+                        if Confirm.ask("Are you sure you want to exit?"):
+                            self.running = False
+                            console.print("[yellow]Shutting down swarm...[/yellow]")
+                            self.orchestrator.shutdown()
+                    
+                    elif command == "help":
+                        self.show_help()
+                    
+                    elif command == "status":
+                        self.show_status()
+                    
+                    elif command == "doctor":
+                        self.run_doctor()
+                    
+                    elif command == "agents":
+                        self.show_agents()
+                    
+                    elif command == "workflows":
+                        self.show_workflows()
+                    
+                    elif command == "goal":
+                        self.handle_goal(args)
+                    
+                    elif command == "check-project":
+                        self.check_project()
+                    
+                    elif command == "research-frameworks":
+                        self.research_frameworks()
+                    
+                    elif command == "suggest":
+                        self.suggest_framework(args)
+                    
+                    elif command == "install":
+                        self.install_framework(args)
+                    
+                    elif command == "clear":
+                        console.clear()
+                        self.show_banner()
+                    
+                    else:
+                        console.print(f"[red]Unknown command: {command}[/red]")
+                        console.print("[dim]Type 'help' for available commands[/dim]")
+                
+                except KeyboardInterrupt:
+                    console.print("\n[yellow]Use 'quit' or 'exit' to leave[/yellow]")
+                    continue
+                except Exception as e:
+                    console.print(f"[red]Error: {str(e)}[/red]")
+        
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Shutting down...[/yellow]")
+        finally:
+            if self.running:
+                console.print("[green]Goodbye![/green]")

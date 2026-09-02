@@ -1,0 +1,28 @@
+# ========================================
+# NORA - Llama.cpp Requirements
+# ========================================
+# Optional requirements for direct GGUF inference via llama-cpp-python
+# 
+# Installation:
+#   pip install -r requirements-llama.txt
+#
+# For CPU-only (default):
+#   pip install llama-cpp-python
+#
+# For GPU acceleration (Metal on macOS):
+#   CMAKE_ARGS="-DLLAMA_METAL=on" pip install llama-cpp-python
+#
+# For GPU acceleration (CUDA on Linux/Windows):
+#   CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python
+#
+# For GPU acceleration (ROCm on AMD):
+#   CMAKE_ARGS="-DLLAMA_HIPBLAS=on" pip install llama-cpp-python
+#
+# Note: This file is separate from requirements.txt to avoid forcing
+# llama-cpp-python installation, which requires compilation and can be
+# platform-specific. Users can choose between llama-cpp-python (direct GGUF)
+# or Ollama (pre-installed models) based on their needs.
+
+# Llama.cpp Python bindings
+# Version pinned for stability; update as needed
+llama-cpp-python>=0.2.0

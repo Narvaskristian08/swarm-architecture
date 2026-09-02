@@ -8,6 +8,8 @@ from datetime import datetime
 import uuid
 import logging
 
+from .llm_client import LLMClientError
+
 logger = logging.getLogger(__name__)
 
 
@@ -140,13 +142,18 @@ class BaseAgent(ABC):
     
     def get_status(self) -> Dict:
         """Get current agent status"""
+        llm_ready = False
+        if self.llm_client:
+            health = getattr(self.llm_client, "health", None)
+            llm_ready = bool(health().get("ready")) if callable(health) else True
         return {
             "agent_id": self.agent_id,
             "name": self.name,
             "status": self.state.status,
             "current_task": self.state.current_task,
             "pending_messages": len(self.inbox),
-            "capabilities": self.capabilities
+            "capabilities": self.capabilities,
+            "llm_ready": llm_ready,
         }
     
     def reset(self):
@@ -194,6 +201,8 @@ class BaseAgent(ABC):
                     messages.insert(0, {"role": "system", "content": system_prompt})
                 
                 result = self.llm_client.chat(messages, temperature=temperature)
+                if result.get("error"):
+                    raise LLMClientError(result["error"])
                 response = result.get("response", "")
                 
                 # Update history
@@ -211,13 +220,17 @@ class BaseAgent(ABC):
                     system_prompt=system_prompt,
                     temperature=temperature
                 )
+                if result.get("error"):
+                    raise LLMClientError(result["error"])
                 response = result.get("response", "")
             
             return response
         
+        except LLMClientError:
+            raise
         except Exception as e:
             logger.error(f"LLM query failed for {self.name}: {e}")
-            return f"Error querying LLM: {str(e)}"
+            raise LLMClientError(f"{self.name} could not query the LLM: {e}") from e
     
     def clear_conversation_history(self):
         """Clear the conversation history"""

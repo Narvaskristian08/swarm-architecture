@@ -4,6 +4,8 @@ Safely executes shell commands for agents.
 """
 import subprocess
 import re
+import shlex
+from pathlib import Path
 from typing import Dict, Any, Optional, List
 import logging
 
@@ -33,8 +35,25 @@ class TerminalTool(BaseTool):
         """Execute a shell command"""
         timeout = kwargs.get("timeout", 30)
         capture_output = kwargs.get("capture_output", True)
-        shell = kwargs.get("shell", True)
+        shell = kwargs.get("shell", False)
         cwd = kwargs.get("cwd", self.working_directory)
+
+        if shell and not kwargs.get("confirm_shell", False):
+            return {
+                "status": "error",
+                "error": "Shell execution requires confirm_shell=True",
+                "command": command,
+            }
+
+        if cwd and self.working_directory:
+            base = Path(self.working_directory).resolve()
+            requested = Path(cwd).resolve()
+            if not requested.is_relative_to(base):
+                return {
+                    "status": "error",
+                    "error": "Working directory must be inside the configured workspace",
+                    "command": command,
+                }
         
         # Safety check
         if self._is_dangerous_command(command):
@@ -47,8 +66,9 @@ class TerminalTool(BaseTool):
         
         try:
             # Execute command
+            args = command if shell or isinstance(command, list) else shlex.split(command)
             result = subprocess.run(
-                command,
+                args,
                 shell=shell,
                 capture_output=capture_output,
                 text=True,
@@ -80,30 +100,33 @@ class TerminalTool(BaseTool):
                 "command": command
             }
     
-    def validate_params(self, command: str = None, **kwargs) -> tuple[bool, Optional[str]]:
+    def validate_params(self, command=None, **kwargs) -> tuple[bool, Optional[str]]:
         """Validate command parameters"""
         if not command:
             return False, "Command is required"
         
-        if not isinstance(command, str):
-            return False, "Command must be a string"
+        if not isinstance(command, (str, list, tuple)):
+            return False, "Command must be a string or argument list"
         
-        if len(command.strip()) == 0:
+        if isinstance(command, str) and len(command.strip()) == 0:
+            return False, "Command cannot be empty"
+        if not isinstance(command, str) and not command:
             return False, "Command cannot be empty"
         
         return True, None
     
-    def _is_dangerous_command(self, command: str) -> bool:
+    def _is_dangerous_command(self, command) -> bool:
         """Check if command is potentially dangerous"""
         if not REQUIRE_CONFIRMATION_FOR_DANGEROUS_COMMANDS:
             return False
         
-        command_lower = command.lower()
+        command_text = command if isinstance(command, str) else " ".join(map(str, command))
+        command_lower = command_text.lower()
         
         # Check against patterns
         for pattern in DANGEROUS_COMMAND_PATTERNS:
             if re.search(pattern, command_lower):
-                logger.warning(f"Dangerous command detected: {command}")
+                logger.warning(f"Dangerous command detected: {command_text}")
                 return True
         
         return False
@@ -138,8 +161,8 @@ class TerminalTool(BaseTool):
     
     def install_package(self, package: str, **kwargs) -> Dict[str, Any]:
         """Install a Python package"""
-        return self.run(command=f"pip install {package}", **kwargs)
+        return self.run(command=["pip", "install", package], **kwargs)
     
     def check_version(self, tool: str) -> Dict[str, Any]:
         """Check version of a tool"""
-        return self.run(command=f"{tool} --version", timeout=5)
+        return self.run(command=[tool, "--version"], timeout=5)

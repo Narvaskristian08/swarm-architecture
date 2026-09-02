@@ -1,21 +1,70 @@
+"""Provider-neutral local LLM clients used by every NORA agent.
+
+Neither provider downloads models.  The direct GGUF backend imports and loads
+``llama_cpp`` lazily, so diagnostics and non-LLM commands work without it.
 """
-LLM Client for Ollama/Qwen Integration
-Provides a unified interface for all agents to interact with the LLM.
-"""
+from abc import ABC, abstractmethod
+import importlib.util
 import json
 import logging
-from typing import Dict, List, Any, Optional, Generator
-import requests
 from datetime import datetime
+from pathlib import Path
+from threading import Lock
+from typing import Any, Dict, Generator, List, Optional
 
-from config import OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
+import requests
+
+from config import (
+    LLAMA_CONTEXT_SIZE,
+    LLAMA_GPU_LAYERS,
+    LLAMA_MAX_TOKENS,
+    LLAMA_MODEL_PATH,
+    LLAMA_THREADS,
+    LLM_PROVIDER,
+    OLLAMA_BASE_URL,
+    OLLAMA_MODEL,
+    OLLAMA_TIMEOUT,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class OllamaClient:
-    """Client for interacting with Ollama API"""
+class LLMClientError(RuntimeError):
+    """Raised when a configured LLM cannot satisfy a request."""
+
+
+class LLMClient(ABC):
+    """Small common interface shared by local inference providers."""
+
+    provider: str
+
+    @property
+    @abstractmethod
+    def model_identifier(self) -> str:
+        """Human-readable configured model name or path."""
+
+    @abstractmethod
+    def health(self) -> Dict[str, Any]:
+        """Return provider readiness without downloading anything."""
+
+    @abstractmethod
+    def generate(self, prompt: str, **kwargs) -> Dict[str, Any]:
+        """Generate text from a prompt."""
+
+    @abstractmethod
+    def chat(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
+        """Generate a chat response."""
+
+    def list_models(self) -> List[str]:
+        """Return locally available models when the provider supports it."""
+        return [self.model_identifier] if self.health().get("ready") else []
+
+
+class OllamaClient(LLMClient):
+    """HTTP client for a user-managed Ollama service."""
+
+    provider = "ollama"
     
     def __init__(
         self,
@@ -26,17 +75,39 @@ class OllamaClient:
         self.base_url = base_url.rstrip('/')
         self.model = model
         self.timeout = timeout
-        self._verify_connection()
-    
-    def _verify_connection(self):
-        """Verify Ollama is running and accessible"""
+
+    @property
+    def model_identifier(self) -> str:
+        return self.model
+
+    def health(self) -> Dict[str, Any]:
+        """Check service availability and whether the configured tag exists."""
         try:
             response = requests.get(f"{self.base_url}/api/tags", timeout=5)
             response.raise_for_status()
-            logger.info(f"Connected to Ollama at {self.base_url}")
+            models = [item.get("name", "") for item in response.json().get("models", [])]
+            ready = self.model in models
+            return {
+                "provider": self.provider,
+                "ready": ready,
+                "runtime_available": True,
+                "model": self.model,
+                "models": models,
+                "message": (
+                    "Ollama and the configured model are ready"
+                    if ready
+                    else f"Ollama is running, but model '{self.model}' is not available"
+                ),
+            }
         except requests.exceptions.RequestException as e:
-            logger.warning(f"Could not connect to Ollama: {e}")
-            logger.warning("Make sure Ollama is running: https://ollama.ai")
+            return {
+                "provider": self.provider,
+                "ready": False,
+                "runtime_available": False,
+                "model": self.model,
+                "models": [],
+                "message": f"Cannot connect to Ollama at {self.base_url}: {e}",
+            }
     
     def generate(
         self,
@@ -78,7 +149,12 @@ class OllamaClient:
         
         try:
             start_time = datetime.now()
-            response = requests.post(url, json=payload, timeout=self.timeout)
+            response = requests.post(
+                url,
+                json=payload,
+                timeout=self.timeout,
+                stream=stream,
+            )
             response.raise_for_status()
             
             if stream:
@@ -192,21 +268,158 @@ class OllamaClient:
             logger.error(f"Failed to list models: {e}")
             return []
     
-    def pull_model(self, model_name: str) -> bool:
-        """Pull a model from Ollama registry"""
-        try:
-            logger.info(f"Pulling model: {model_name}")
-            response = requests.post(
-                f"{self.base_url}/api/pull",
-                json={"name": model_name},
-                timeout=600  # 10 minutes for model download
+
+class LlamaCppClient(LLMClient):
+    """Lazy direct-GGUF client backed by the optional llama-cpp-python package."""
+
+    provider = "llama_cpp"
+
+    def __init__(
+        self,
+        model_path: str = LLAMA_MODEL_PATH,
+        context_size: int = LLAMA_CONTEXT_SIZE,
+        max_tokens: int = LLAMA_MAX_TOKENS,
+        gpu_layers: int = LLAMA_GPU_LAYERS,
+        threads: int = LLAMA_THREADS,
+    ):
+        self.model_path = Path(model_path).expanduser() if model_path else None
+        self.context_size = context_size
+        self.max_tokens = max_tokens
+        self.gpu_layers = gpu_layers
+        self.threads = threads
+        self._model = None
+        self._load_lock = Lock()
+
+    @property
+    def model_identifier(self) -> str:
+        return str(self.model_path) if self.model_path else ""
+
+    def health(self) -> Dict[str, Any]:
+        runtime_available = importlib.util.find_spec("llama_cpp") is not None
+        path_configured = self.model_path is not None
+        model_exists = bool(path_configured and self.model_path.is_file())
+
+        if not path_configured:
+            message = "Set LLAMA_MODEL_PATH to the absolute path of a GGUF model"
+        elif not model_exists:
+            message = f"GGUF model not found at {self.model_path}"
+        elif not runtime_available:
+            message = (
+                "llama-cpp-python is not installed; install requirements-llama.txt "
+                "when you are ready to use the GGUF model"
             )
-            response.raise_for_status()
-            logger.info(f"Successfully pulled {model_name}")
-            return True
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to pull model: {e}")
-            return False
+        else:
+            message = "Direct GGUF runtime and model path are ready"
+
+        return {
+            "provider": self.provider,
+            "ready": runtime_available and model_exists,
+            "runtime_available": runtime_available,
+            "model": self.model_identifier,
+            "model_exists": model_exists,
+            "loaded": self._model is not None,
+            "message": message,
+        }
+
+    def _get_model(self):
+        status = self.health()
+        if not status["ready"]:
+            raise LLMClientError(status["message"])
+
+        if self._model is None:
+            with self._load_lock:
+                if self._model is None:
+                    try:
+                        from llama_cpp import Llama
+
+                        kwargs = {
+                            "model_path": str(self.model_path),
+                            "n_ctx": self.context_size,
+                            "n_gpu_layers": self.gpu_layers,
+                            "verbose": False,
+                        }
+                        if self.threads > 0:
+                            kwargs["n_threads"] = self.threads
+                        self._model = Llama(**kwargs)
+                    except Exception as exc:
+                        raise LLMClientError(
+                            f"Failed to load GGUF model '{self.model_path}': {exc}"
+                        ) from exc
+        return self._model
+
+    def generate(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        stream: bool = False,
+    ) -> Dict[str, Any]:
+        if stream:
+            return {
+                "response": "",
+                "error": "Streaming is not exposed by the NORA llama.cpp adapter",
+                "metadata": {"error": True, "provider": self.provider},
+            }
+
+        full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
+        started = datetime.now()
+        try:
+            result = self._get_model().create_completion(
+                prompt=full_prompt,
+                max_tokens=max_tokens or self.max_tokens,
+                temperature=temperature,
+                stream=False,
+            )
+            return {
+                "response": result.get("choices", [{}])[0].get("text", ""),
+                "metadata": {
+                    "provider": self.provider,
+                    "model": self.model_identifier,
+                    "duration_seconds": (datetime.now() - started).total_seconds(),
+                    "usage": result.get("usage", {}),
+                },
+            }
+        except LLMClientError as exc:
+            return {
+                "response": "",
+                "error": str(exc),
+                "metadata": {"error": True, "provider": self.provider},
+            }
+
+    def chat(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        started = datetime.now()
+        try:
+            result = self._get_model().create_chat_completion(
+                messages=messages,
+                max_tokens=max_tokens or self.max_tokens,
+                temperature=temperature,
+                stream=False,
+            )
+            return {
+                "response": (
+                    result.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "")
+                ),
+                "metadata": {
+                    "provider": self.provider,
+                    "model": self.model_identifier,
+                    "duration_seconds": (datetime.now() - started).total_seconds(),
+                    "usage": result.get("usage", {}),
+                },
+            }
+        except LLMClientError as exc:
+            return {
+                "response": "",
+                "error": str(exc),
+                "metadata": {"error": True, "provider": self.provider},
+            }
 
 
 class PromptTemplate:
@@ -335,11 +548,19 @@ Help the swarm continuously improve."""
 
 
 # Singleton instance
-_llm_client = None
+_llm_client: Optional[LLMClient] = None
+_llm_provider: Optional[str] = None
 
-def get_llm_client() -> OllamaClient:
-    """Get or create the global LLM client instance"""
-    global _llm_client
-    if _llm_client is None:
-        _llm_client = OllamaClient()
+
+def get_llm_client(provider: Optional[str] = None, reset: bool = False) -> LLMClient:
+    """Get the configured local client without loading or downloading a model."""
+    global _llm_client, _llm_provider
+
+    selected = (provider or LLM_PROVIDER).strip().lower()
+    if selected not in {"llama_cpp", "ollama"}:
+        raise ValueError("provider must be 'llama_cpp' or 'ollama'")
+
+    if reset or _llm_client is None or _llm_provider != selected:
+        _llm_client = LlamaCppClient() if selected == "llama_cpp" else OllamaClient()
+        _llm_provider = selected
     return _llm_client

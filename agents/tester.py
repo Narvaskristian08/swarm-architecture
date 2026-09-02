@@ -199,7 +199,14 @@ Requirements:
 5. Follow {test_framework} best practices
 6. Include docstrings explaining what each test verifies
 
-Provide complete, runnable test code."""
+Return complete, runnable test code using this exact format:
+
+FILE: tests/test_feature.py
+```{language}
+complete test file contents
+```
+
+Paths must be relative and must not contain ``..``."""
         
         system_prompt = PromptTemplate.get_system_prompt("tester")
         response = self.query_llm(prompt, system_prompt=system_prompt, temperature=0.3)

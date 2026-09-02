@@ -155,13 +155,15 @@ class ToolManager:
         return self.execute_tool("project", operation="analyze", path=path)
 
 
-# Global tool manager instance
-_tool_manager: Optional[ToolManager] = None
+# Tool managers are cached per resolved workspace. A single global instance can
+# silently write generated files into the wrong project when tests or workflows
+# use different roots.
+_tool_managers: Dict[Path, ToolManager] = {}
 
 
 def get_tool_manager(workspace_root: Optional[Path] = None) -> ToolManager:
-    """Get or create the global tool manager"""
-    global _tool_manager
-    if _tool_manager is None:
-        _tool_manager = ToolManager(workspace_root)
-    return _tool_manager
+    """Get or create a tool manager scoped to one resolved workspace."""
+    root = (workspace_root or Path.cwd()).resolve()
+    if root not in _tool_managers:
+        _tool_managers[root] = ToolManager(root)
+    return _tool_managers[root]

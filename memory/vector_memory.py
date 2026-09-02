@@ -14,7 +14,7 @@ except ImportError:
     CHROMADB_AVAILABLE = False
     logging.warning("ChromaDB not installed. Vector memory will be disabled.")
 
-from config import VECTOR_DB_PATH, VECTOR_COLLECTION_NAME
+from config import ENABLE_VECTOR_MEMORY, VECTOR_DB_PATH, VECTOR_COLLECTION_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,10 @@ class VectorMemory:
         self.client = None
         self.collection = None
         
+        if not ENABLE_VECTOR_MEMORY:
+            logger.info("Vector memory disabled by ENABLE_VECTOR_MEMORY=false")
+            return
+
         if not CHROMADB_AVAILABLE:
             logger.warning("ChromaDB not available. Vector memory disabled.")
             return
@@ -67,7 +71,12 @@ class VectorMemory:
     
     def is_available(self) -> bool:
         """Check if vector memory is available"""
-        return CHROMADB_AVAILABLE and self.client is not None and self.collection is not None
+        return (
+            ENABLE_VECTOR_MEMORY
+            and CHROMADB_AVAILABLE
+            and self.client is not None
+            and self.collection is not None
+        )
     
     def add(
         self,
